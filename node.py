@@ -2,7 +2,6 @@ import os
 import cv2
 import sys
 import torch
-import argparse
 import numpy as np
 
 project_root = os.path.abspath(os.path.dirname(__file__))
@@ -203,7 +202,13 @@ class StyleShotApply:
     CATEGORY = "StyleShot"
 
     def generate(
-        self, pipeline, mode, style_image, condition_image, prompt, preprocessor
+        self,
+        pipeline,
+        mode,
+        style_image,
+        condition_image=None,
+        prompt=None,
+        preprocessor=None,
     ):
         if preprocessor == "Lineart":
             detector = LineartDetector()
