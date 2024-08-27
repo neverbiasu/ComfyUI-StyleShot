@@ -199,10 +199,21 @@ class StyleShotApply:
         if mode == "text_driven":
             generation = pipeline.generate(style_image=style_image, prompt=[[prompt]])
         elif mode == "image_driven":
+            print("content_image", condition_image)
             content_image = np.array(condition_image)
+            print("content_image.shape1", content_image.shape)
+            content_image = content_image[0]
+            print("content_image.shape1.5", content_image.shape)
             content_image = cv2.cvtColor(content_image, cv2.COLOR_BGR2RGB)
+            print("content_image.shape2", content_image.shape)
             content_image = detector(content_image)
             content_image = Image.fromarray(content_image)
+            style_image = np.array(style_image)
+            style_image = style_image[0]
+            print("style_image.shape", style_image.shape)
+            style_image = (style_image * 255).astype(np.uint8)
+            print("style_image.shape2", style_image.shape)
+            style_image = Image.fromarray(style_image)
             generation = pipeline.generate(
                 style_image=style_image, prompt=[[prompt]], content_image=content_image
             )
@@ -216,6 +227,11 @@ class StyleShotApply:
             )
         else:
             raise ValueError("Invalid mode")
-        result = torch.from_numpy(np.array(generation[0][0]) / 255.0).unsqueeze(0)
+        print("generation[0][0]", generation[0][0])
+        generation[0][0].save("test.png")
+        image_array = np.array(generation[0][0], dtype=np.float32)
+        print("image_array.shape", image_array.shape)
+        result = torch.from_numpy(image_array).unsqueeze(0).unsqueeze(0) / 255.0
+        print("result.shape", result.shape)
         print("Generation done")
         return result
