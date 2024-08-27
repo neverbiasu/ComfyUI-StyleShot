@@ -201,6 +201,8 @@ class StyleShotApply:
         elif mode == "image_driven":
             content_image = np.array(condition_image)
             print("content_image.shape1", content_image.shape)
+            content_image = content_image[0]
+            print("content_image.shape1.5", content_image.shape)
             content_image = cv2.cvtColor(content_image, cv2.COLOR_BGR2RGB)
             print("content_image.shape2", content_image.shape)
             content_image = detector(content_image)
