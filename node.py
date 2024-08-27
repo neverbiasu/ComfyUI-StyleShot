@@ -35,7 +35,10 @@ class PipelineLoader:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "mode": (["text_driven", "image_driven", "controlnet", "t2i-adapter"],),
+                "mode": (
+                    ["text_driven", "image_driven", "controlnet", "t2i-adapter"],
+                    {"default": "text_driven"},
+                ),
                 "base_model_path": (
                     "STRING",
                     {"default": "runwayml/stable-diffusion-v1-5"},
@@ -53,7 +56,7 @@ class PipelineLoader:
                     "STRING",
                     {"default": "TencentARC/t2iadapter_depth_sd15v2"},
                 ),
-                "preprocessor": (["Lineart", "Contour"],),
+                "preprocessor": (["Lineart", "Contour"], {"default": "Contour"}),
             }
         }
 
@@ -185,13 +188,16 @@ class StyleShotApply:
         return {
             "required": {
                 "pipeline": ("PIPELINE",),
-                "mode": (["text_driven", "image_driven", "controlnet", "t2i-adapter"],),
-                "style_image": ("IMAGE",),
+                "mode": (
+                    ["text_driven", "image_driven", "controlnet", "t2i-adapter"],
+                    {"default": "text_driven"},
+                ),
+                "style_image": ("IMAGE", {"default": None}),
             },
             "optional": {
-                "condition_image": ("IMAGE",),
-                "prompt": ("STRING",),
-                "preprocessor": (["Contour", "Lineart"],),
+                "condition_image": ("IMAGE", {"default": None}),
+                "prompt": ("STRING", {"default": ""}),
+                "preprocessor": (["Contour", "Lineart"], {"default": "Contour"}),
             },
         }
 
@@ -206,9 +212,9 @@ class StyleShotApply:
         pipeline,
         mode,
         style_image,
-        condition_image=None,
-        prompt=None,
-        preprocessor=None,
+        condition_image,
+        prompt,
+        preprocessor,
     ):
         if preprocessor == "Lineart":
             detector = LineartDetector()
