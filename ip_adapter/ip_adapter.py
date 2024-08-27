@@ -4,7 +4,11 @@ from typing import List
 
 import torch
 from typing import Optional, Union, Any, Dict, Tuple, List, Callable
-from diffusers.utils.torch_utils import is_compiled_module, is_torch_version, randn_tensor
+from diffusers.utils.torch_utils import (
+    is_compiled_module,
+    is_torch_version,
+    randn_tensor,
+)
 from diffusers.utils import (
     USE_PEFT_BACKEND,
     deprecate,
@@ -15,8 +19,12 @@ from diffusers.utils import (
 )
 from diffusers.pipelines.controlnet.pipeline_controlnet import retrieve_timesteps
 from diffusers import StableDiffusionPipeline
-from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.pipelines.controlnet.pipeline_controlnet import StableDiffusionControlNetPipeline
+from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
+    StableDiffusionPipelineOutput,
+)
+from diffusers.pipelines.controlnet.pipeline_controlnet import (
+    StableDiffusionControlNetPipeline,
+)
 from diffusers.models.controlnet import ControlNetModel
 from diffusers.image_processor import PipelineImageInput
 from diffusers.pipelines.controlnet import MultiControlNetModel
@@ -47,12 +55,19 @@ from .resampler import Resampler
 class ImageProjModel(torch.nn.Module):
     """Projection Model"""
 
-    def __init__(self, cross_attention_dim=1024, clip_embeddings_dim=1024, clip_extra_context_tokens=4):
+    def __init__(
+        self,
+        cross_attention_dim=1024,
+        clip_embeddings_dim=1024,
+        clip_extra_context_tokens=4,
+    ):
         super().__init__()
 
         self.cross_attention_dim = cross_attention_dim
         self.clip_extra_context_tokens = clip_extra_context_tokens
-        self.proj = torch.nn.Linear(clip_embeddings_dim, self.clip_extra_context_tokens * cross_attention_dim)
+        self.proj = torch.nn.Linear(
+            clip_embeddings_dim, self.clip_extra_context_tokens * cross_attention_dim
+        )
         self.norm = torch.nn.LayerNorm(cross_attention_dim)
 
     def forward(self, image_embeds):
@@ -66,6 +81,7 @@ class ImageProjModel(torch.nn.Module):
 
 class MLPProjModel(torch.nn.Module):
     """SD model with image prompt"""
+
     def __init__(self, cross_attention_dim=1024, clip_embeddings_dim=1024):
         super().__init__()
 
@@ -73,7 +89,7 @@ class MLPProjModel(torch.nn.Module):
             torch.nn.Linear(clip_embeddings_dim, clip_embeddings_dim),
             torch.nn.GELU(),
             torch.nn.Linear(clip_embeddings_dim, cross_attention_dim),
-            torch.nn.LayerNorm(cross_attention_dim)
+            torch.nn.LayerNorm(cross_attention_dim),
         )
 
     def forward(self, image_embeds):
@@ -92,9 +108,9 @@ class IPAdapter:
         self.set_ip_adapter()
 
         # load image encoder
-        self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(self.image_encoder_path).to(
-            self.device, dtype=torch.float16
-        )
+        self.image_encoder = CLIPVisionModelWithProjection.from_pretrained(
+            self.image_encoder_path
+        ).to(self.device, dtype=torch.float16)
         self.clip_image_processor = CLIPImageProcessor()
         # image proj model
         self.image_proj_model = self.init_proj()
@@ -113,7 +129,11 @@ class IPAdapter:
         unet = self.pipe.unet
         attn_procs = {}
         for name in unet.attn_processors.keys():
-            cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
+            cross_attention_dim = (
+                None
+                if name.endswith("attn1.processor")
+                else unet.config.cross_attention_dim
+            )
             if name.startswith("mid_block"):
                 hidden_size = unet.config.block_out_channels[-1]
             elif name.startswith("up_blocks"):
@@ -135,9 +155,13 @@ class IPAdapter:
         if hasattr(self.pipe, "controlnet"):
             if isinstance(self.pipe.controlnet, MultiControlNetModel):
                 for controlnet in self.pipe.controlnet.nets:
-                    controlnet.set_attn_processor(CNAttnProcessor(num_tokens=self.num_tokens))
+                    controlnet.set_attn_processor(
+                        CNAttnProcessor(num_tokens=self.num_tokens)
+                    )
             else:
-                self.pipe.controlnet.set_attn_processor(CNAttnProcessor(num_tokens=self.num_tokens))
+                self.pipe.controlnet.set_attn_processor(
+                    CNAttnProcessor(num_tokens=self.num_tokens)
+                )
 
     def load_ip_adapter(self):
         if os.path.splitext(self.ip_ckpt)[-1] == ".safetensors":
@@ -145,9 +169,13 @@ class IPAdapter:
             with safe_open(self.ip_ckpt, framework="pt", device="cpu") as f:
                 for key in f.keys():
                     if key.startswith("image_proj."):
-                        state_dict["image_proj"][key.replace("image_proj.", "")] = f.get_tensor(key)
+                        state_dict["image_proj"][key.replace("image_proj.", "")] = (
+                            f.get_tensor(key)
+                        )
                     elif key.startswith("ip_adapter."):
-                        state_dict["ip_adapter"][key.replace("ip_adapter.", "")] = f.get_tensor(key)
+                        state_dict["ip_adapter"][key.replace("ip_adapter.", "")] = (
+                            f.get_tensor(key)
+                        )
         else:
             state_dict = torch.load(self.ip_ckpt, map_location="cpu")
         self.image_proj_model.load_state_dict(state_dict["image_proj"])
@@ -159,12 +187,18 @@ class IPAdapter:
         if pil_image is not None:
             if isinstance(pil_image, Image.Image):
                 pil_image = [pil_image]
-            clip_image = self.clip_image_processor(images=pil_image, return_tensors="pt").pixel_values
-            clip_image_embeds = self.image_encoder(clip_image.to(self.device, dtype=torch.float16)).image_embeds
+            clip_image = self.clip_image_processor(
+                images=pil_image, return_tensors="pt"
+            ).pixel_values
+            clip_image_embeds = self.image_encoder(
+                clip_image.to(self.device, dtype=torch.float16)
+            ).image_embeds
         else:
             clip_image_embeds = clip_image_embeds.to(self.device, dtype=torch.float16)
         image_prompt_embeds = self.image_proj_model(clip_image_embeds)
-        uncond_image_prompt_embeds = self.image_proj_model(torch.zeros_like(clip_image_embeds))
+        uncond_image_prompt_embeds = self.image_proj_model(
+            torch.zeros_like(clip_image_embeds)
+        )
         return image_prompt_embeds, uncond_image_prompt_embeds
 
     def set_scale(self, scale):
@@ -195,7 +229,9 @@ class IPAdapter:
         if prompt is None:
             prompt = "best quality, high quality"
         if negative_prompt is None:
-            negative_prompt = "monochrome, lowres, bad anatomy, worst quality, low quality"
+            negative_prompt = (
+                "monochrome, lowres, bad anatomy, worst quality, low quality"
+            )
 
         if not isinstance(prompt, List):
             prompt = [prompt] * num_prompts
@@ -207,9 +243,15 @@ class IPAdapter:
         )
         bs_embed, seq_len, _ = image_prompt_embeds.shape
         image_prompt_embeds = image_prompt_embeds.repeat(1, num_samples, 1)
-        image_prompt_embeds = image_prompt_embeds.view(bs_embed * num_samples, seq_len, -1)
-        uncond_image_prompt_embeds = uncond_image_prompt_embeds.repeat(1, num_samples, 1)
-        uncond_image_prompt_embeds = uncond_image_prompt_embeds.view(bs_embed * num_samples, seq_len, -1)
+        image_prompt_embeds = image_prompt_embeds.view(
+            bs_embed * num_samples, seq_len, -1
+        )
+        uncond_image_prompt_embeds = uncond_image_prompt_embeds.repeat(
+            1, num_samples, 1
+        )
+        uncond_image_prompt_embeds = uncond_image_prompt_embeds.view(
+            bs_embed * num_samples, seq_len, -1
+        )
 
         with torch.inference_mode():
             prompt_embeds_, negative_prompt_embeds_ = self.pipe.encode_prompt(
@@ -220,9 +262,13 @@ class IPAdapter:
                 negative_prompt=negative_prompt,
             )
             prompt_embeds = torch.cat([prompt_embeds_, image_prompt_embeds], dim=1)
-            negative_prompt_embeds = torch.cat([negative_prompt_embeds_, uncond_image_prompt_embeds], dim=1)
+            negative_prompt_embeds = torch.cat(
+                [negative_prompt_embeds_, uncond_image_prompt_embeds], dim=1
+            )
 
-        generator = torch.Generator(self.device).manual_seed(seed) if seed is not None else None
+        generator = (
+            torch.Generator(self.device).manual_seed(seed) if seed is not None else None
+        )
         images = self.pipe(
             prompt_embeds=prompt_embeds,
             negative_prompt_embeds=negative_prompt_embeds,
@@ -256,19 +302,29 @@ class IPAdapterXL(IPAdapter):
         if prompt is None:
             prompt = "best quality, high quality"
         if negative_prompt is None:
-            negative_prompt = "monochrome, lowres, bad anatomy, worst quality, low quality"
+            negative_prompt = (
+                "monochrome, lowres, bad anatomy, worst quality, low quality"
+            )
 
         if not isinstance(prompt, List):
             prompt = [prompt] * num_prompts
         if not isinstance(negative_prompt, List):
             negative_prompt = [negative_prompt] * num_prompts
 
-        image_prompt_embeds, uncond_image_prompt_embeds = self.get_image_embeds(pil_image)
+        image_prompt_embeds, uncond_image_prompt_embeds = self.get_image_embeds(
+            pil_image
+        )
         bs_embed, seq_len, _ = image_prompt_embeds.shape
         image_prompt_embeds = image_prompt_embeds.repeat(1, num_samples, 1)
-        image_prompt_embeds = image_prompt_embeds.view(bs_embed * num_samples, seq_len, -1)
-        uncond_image_prompt_embeds = uncond_image_prompt_embeds.repeat(1, num_samples, 1)
-        uncond_image_prompt_embeds = uncond_image_prompt_embeds.view(bs_embed * num_samples, seq_len, -1)
+        image_prompt_embeds = image_prompt_embeds.view(
+            bs_embed * num_samples, seq_len, -1
+        )
+        uncond_image_prompt_embeds = uncond_image_prompt_embeds.repeat(
+            1, num_samples, 1
+        )
+        uncond_image_prompt_embeds = uncond_image_prompt_embeds.view(
+            bs_embed * num_samples, seq_len, -1
+        )
 
         with torch.inference_mode():
             (
@@ -283,9 +339,13 @@ class IPAdapterXL(IPAdapter):
                 negative_prompt=negative_prompt,
             )
             prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
-            negative_prompt_embeds = torch.cat([negative_prompt_embeds, uncond_image_prompt_embeds], dim=1)
+            negative_prompt_embeds = torch.cat(
+                [negative_prompt_embeds, uncond_image_prompt_embeds], dim=1
+            )
 
-        generator = torch.Generator(self.device).manual_seed(seed) if seed is not None else None
+        generator = (
+            torch.Generator(self.device).manual_seed(seed) if seed is not None else None
+        )
         images = self.pipe(
             prompt_embeds=prompt_embeds,
             negative_prompt_embeds=negative_prompt_embeds,
@@ -319,9 +379,13 @@ class IPAdapterPlus(IPAdapter):
     def get_image_embeds(self, pil_image=None, clip_image_embeds=None):
         if isinstance(pil_image, Image.Image):
             pil_image = [pil_image]
-        clip_image = self.clip_image_processor(images=pil_image, return_tensors="pt").pixel_values
+        clip_image = self.clip_image_processor(
+            images=pil_image, return_tensors="pt"
+        ).pixel_values
         clip_image = clip_image.to(self.device, dtype=torch.float16)
-        clip_image_embeds = self.image_encoder(clip_image, output_hidden_states=True).hidden_states[-2]
+        clip_image_embeds = self.image_encoder(
+            clip_image, output_hidden_states=True
+        ).hidden_states[-2]
         image_prompt_embeds = self.image_proj_model(clip_image_embeds)
         uncond_clip_image_embeds = self.image_encoder(
             torch.zeros_like(clip_image), output_hidden_states=True
@@ -361,9 +425,13 @@ class IPAdapterPlusXL(IPAdapter):
     def get_image_embeds(self, pil_image):
         if isinstance(pil_image, Image.Image):
             pil_image = [pil_image]
-        clip_image = self.clip_image_processor(images=pil_image, return_tensors="pt").pixel_values
+        clip_image = self.clip_image_processor(
+            images=pil_image, return_tensors="pt"
+        ).pixel_values
         clip_image = clip_image.to(self.device, dtype=torch.float16)
-        clip_image_embeds = self.image_encoder(clip_image, output_hidden_states=True).hidden_states[-2]
+        clip_image_embeds = self.image_encoder(
+            clip_image, output_hidden_states=True
+        ).hidden_states[-2]
         image_prompt_embeds = self.image_proj_model(clip_image_embeds)
         uncond_clip_image_embeds = self.image_encoder(
             torch.zeros_like(clip_image), output_hidden_states=True
@@ -389,19 +457,29 @@ class IPAdapterPlusXL(IPAdapter):
         if prompt is None:
             prompt = "best quality, high quality"
         if negative_prompt is None:
-            negative_prompt = "monochrome, lowres, bad anatomy, worst quality, low quality"
+            negative_prompt = (
+                "monochrome, lowres, bad anatomy, worst quality, low quality"
+            )
 
         if not isinstance(prompt, List):
             prompt = [prompt] * num_prompts
         if not isinstance(negative_prompt, List):
             negative_prompt = [negative_prompt] * num_prompts
 
-        image_prompt_embeds, uncond_image_prompt_embeds = self.get_image_embeds(pil_image)
+        image_prompt_embeds, uncond_image_prompt_embeds = self.get_image_embeds(
+            pil_image
+        )
         bs_embed, seq_len, _ = image_prompt_embeds.shape
         image_prompt_embeds = image_prompt_embeds.repeat(1, num_samples, 1)
-        image_prompt_embeds = image_prompt_embeds.view(bs_embed * num_samples, seq_len, -1)
-        uncond_image_prompt_embeds = uncond_image_prompt_embeds.repeat(1, num_samples, 1)
-        uncond_image_prompt_embeds = uncond_image_prompt_embeds.view(bs_embed * num_samples, seq_len, -1)
+        image_prompt_embeds = image_prompt_embeds.view(
+            bs_embed * num_samples, seq_len, -1
+        )
+        uncond_image_prompt_embeds = uncond_image_prompt_embeds.repeat(
+            1, num_samples, 1
+        )
+        uncond_image_prompt_embeds = uncond_image_prompt_embeds.view(
+            bs_embed * num_samples, seq_len, -1
+        )
 
         with torch.inference_mode():
             (
@@ -416,9 +494,13 @@ class IPAdapterPlusXL(IPAdapter):
                 negative_prompt=negative_prompt,
             )
             prompt_embeds = torch.cat([prompt_embeds, image_prompt_embeds], dim=1)
-            negative_prompt_embeds = torch.cat([negative_prompt_embeds, uncond_image_prompt_embeds], dim=1)
+            negative_prompt_embeds = torch.cat(
+                [negative_prompt_embeds, uncond_image_prompt_embeds], dim=1
+            )
 
-        generator = torch.Generator(self.device).manual_seed(seed) if seed is not None else None
+        generator = (
+            torch.Generator(self.device).manual_seed(seed) if seed is not None else None
+        )
         images = self.pipe(
             prompt_embeds=prompt_embeds,
             negative_prompt_embeds=negative_prompt_embeds,
@@ -433,10 +515,12 @@ class IPAdapterPlusXL(IPAdapter):
 
 
 def StyleProcessor(style_image, device):
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize([0.5], [0.5]),
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5]),
+        ]
+    )
     # centercrop for style condition
     crop = transforms.Compose(
         [
@@ -445,17 +529,28 @@ def StyleProcessor(style_image, device):
         ]
     )
     style_image = crop(style_image)
-    high_style_patch, middle_style_patch, low_style_patch = pre_processing(style_image.convert("RGB"), transform)
+    high_style_patch, middle_style_patch, low_style_patch = pre_processing(
+        style_image.convert("RGB"), transform
+    )
     # shuffling
-    high_style_patch, middle_style_patch, low_style_patch = (high_style_patch[torch.randperm(high_style_patch.shape[0])],
-                                                             middle_style_patch[torch.randperm(middle_style_patch.shape[0])],
-                                                             low_style_patch[torch.randperm(low_style_patch.shape[0])])
-    return (high_style_patch.to(device, dtype=torch.float32), middle_style_patch.to(device, dtype=torch.float32), low_style_patch.to(device, dtype=torch.float32))
+    high_style_patch, middle_style_patch, low_style_patch = (
+        high_style_patch[torch.randperm(high_style_patch.shape[0])],
+        middle_style_patch[torch.randperm(middle_style_patch.shape[0])],
+        low_style_patch[torch.randperm(low_style_patch.shape[0])],
+    )
+    return (
+        high_style_patch.to(device, dtype=torch.float32),
+        middle_style_patch.to(device, dtype=torch.float32),
+        low_style_patch.to(device, dtype=torch.float32),
+    )
 
 
 class StyleShot(torch.nn.Module):
     """StyleShot generation"""
-    def __init__(self, device, pipe, ip_ckpt, style_aware_encoder_ckpt, transformer_patch):
+
+    def __init__(
+        self, device, pipe, ip_ckpt, style_aware_encoder_ckpt, transformer_patch
+    ):
         super().__init__()
         self.num_tokens = 6
         self.device = device
@@ -464,7 +559,9 @@ class StyleShot(torch.nn.Module):
         self.set_ip_adapter(device)
         self.ip_ckpt = ip_ckpt
 
-        self.style_aware_encoder = Style_Aware_Encoder(CLIPVisionModelWithProjection.from_pretrained(transformer_patch)).to(self.device, dtype=torch.float32)
+        self.style_aware_encoder = Style_Aware_Encoder(
+            CLIPVisionModelWithProjection.from_pretrained(transformer_patch)
+        ).to(self.device, dtype=torch.float32)
         self.style_aware_encoder.load_state_dict(torch.load(style_aware_encoder_ckpt))
 
         self.style_image_proj_modules = self.init_proj()
@@ -472,23 +569,29 @@ class StyleShot(torch.nn.Module):
         self.load_ip_adapter()
         self.pipe = self.pipe.to(self.device, dtype=torch.float32)
 
+    def __len__(self):
+        return self.num_tokens
+
     def init_proj(self):
-        style_image_proj_modules = torch.nn.ModuleList([
-                            ImageProjModel(
-                                cross_attention_dim=self.pipe.unet.config.cross_attention_dim,
-                                clip_embeddings_dim=self.style_aware_encoder.projection_dim,
-                                clip_extra_context_tokens=2,
-                            ),
-                            ImageProjModel(
-                                cross_attention_dim=self.pipe.unet.config.cross_attention_dim,
-                                clip_embeddings_dim=self.style_aware_encoder.projection_dim,
-                                clip_extra_context_tokens=2,
-                            ),
-                            ImageProjModel(
-                                cross_attention_dim=self.pipe.unet.config.cross_attention_dim,
-                                clip_embeddings_dim=self.style_aware_encoder.projection_dim,
-                                clip_extra_context_tokens=2,
-                            )])
+        style_image_proj_modules = torch.nn.ModuleList(
+            [
+                ImageProjModel(
+                    cross_attention_dim=self.pipe.unet.config.cross_attention_dim,
+                    clip_embeddings_dim=self.style_aware_encoder.projection_dim,
+                    clip_extra_context_tokens=2,
+                ),
+                ImageProjModel(
+                    cross_attention_dim=self.pipe.unet.config.cross_attention_dim,
+                    clip_embeddings_dim=self.style_aware_encoder.projection_dim,
+                    clip_extra_context_tokens=2,
+                ),
+                ImageProjModel(
+                    cross_attention_dim=self.pipe.unet.config.cross_attention_dim,
+                    clip_embeddings_dim=self.style_aware_encoder.projection_dim,
+                    clip_extra_context_tokens=2,
+                ),
+            ]
+        )
         return style_image_proj_modules.to(self.device, dtype=torch.float32)
 
     def load_ip_adapter(self):
@@ -508,7 +611,9 @@ class StyleShot(torch.nn.Module):
         # Load state dict for image_proj_model and adapter_modules
         self.style_image_proj_modules.load_state_dict(style_image_proj_sd, strict=True)
         ip_layers = torch.nn.ModuleList(self.pipe.unet.attn_processors.values())
-        if hasattr(self.pipe, "controlnet") and isinstance(self.pipe, StyleContentStableDiffusionControlNetPipeline):
+        if hasattr(self.pipe, "controlnet") and isinstance(
+            self.pipe, StyleContentStableDiffusionControlNetPipeline
+        ):
             self.pipe.controlnet.load_state_dict(controlnet_sd, strict=True)
         ip_layers.load_state_dict(ip_sd, strict=True)
 
@@ -516,7 +621,11 @@ class StyleShot(torch.nn.Module):
         unet = self.pipe.unet
         attn_procs = {}
         for name in unet.attn_processors.keys():
-            cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
+            cross_attention_dim = (
+                None
+                if name.endswith("attn1.processor")
+                else unet.config.cross_attention_dim
+            )
             if name.startswith("mid_block"):
                 hidden_size = unet.config.block_out_channels[-1]
             elif name.startswith("up_blocks"):
@@ -534,23 +643,35 @@ class StyleShot(torch.nn.Module):
                     scale=1.0,
                     num_tokens=self.num_tokens,
                 ).to(device, dtype=torch.float16)
-        if hasattr(self.pipe, "controlnet") and not isinstance(self.pipe, StyleContentStableDiffusionControlNetPipeline):
+        if hasattr(self.pipe, "controlnet") and not isinstance(
+            self.pipe, StyleContentStableDiffusionControlNetPipeline
+        ):
             if isinstance(self.pipe.controlnet, MultiControlNetModel):
                 for controlnet in self.pipe.controlnet.nets:
-                    controlnet.set_attn_processor(CNAttnProcessor(num_tokens=self.num_tokens))
+                    controlnet.set_attn_processor(
+                        CNAttnProcessor(num_tokens=self.num_tokens)
+                    )
             else:
-                self.pipe.controlnet.set_attn_processor(CNAttnProcessor(num_tokens=self.num_tokens))
+                self.pipe.controlnet.set_attn_processor(
+                    CNAttnProcessor(num_tokens=self.num_tokens)
+                )
         unet.set_attn_processor(attn_procs)
 
     @torch.inference_mode()
     def get_image_embeds(self, style_image=None):
         style_image = StyleProcessor(style_image, self.device)
-        style_embeds = self.style_aware_encoder(style_image).to(self.device, dtype=torch.float32)
+        style_embeds = self.style_aware_encoder(style_image).to(
+            self.device, dtype=torch.float32
+        )
         style_ip_tokens = []
         uncond_style_ip_tokens = []
-        for idx, style_embed in enumerate([style_embeds[:, 0, :], style_embeds[:, 1, :], style_embeds[:, 2, :]]):
+        for idx, style_embed in enumerate(
+            [style_embeds[:, 0, :], style_embeds[:, 1, :], style_embeds[:, 2, :]]
+        ):
             style_ip_tokens.append(self.style_image_proj_modules[idx](style_embed))
-            uncond_style_ip_tokens.append(self.style_image_proj_modules[idx](torch.zeros_like(style_embed)))
+            uncond_style_ip_tokens.append(
+                self.style_image_proj_modules[idx](torch.zeros_like(style_embed))
+            )
         style_ip_tokens = torch.cat(style_ip_tokens, dim=1)
         uncond_style_ip_tokens = torch.cat(uncond_style_ip_tokens, dim=1)
         return style_ip_tokens, uncond_style_ip_tokens
@@ -560,13 +681,31 @@ class StyleShot(torch.nn.Module):
             if isinstance(attn_processor, IPAttnProcessor):
                 attn_processor.scale = scale
 
-    def samples(self, image_prompt_embeds, uncond_image_prompt_embeds, num_samples, device, prompt, negative_prompt,
-                seed, guidance_scale, num_inference_steps, content_image, **kwargs, ):
+    def samples(
+        self,
+        image_prompt_embeds,
+        uncond_image_prompt_embeds,
+        num_samples,
+        device,
+        prompt,
+        negative_prompt,
+        seed,
+        guidance_scale,
+        num_inference_steps,
+        content_image,
+        **kwargs,
+    ):
         bs_embed, seq_len, _ = image_prompt_embeds.shape
         image_prompt_embeds = image_prompt_embeds.repeat(1, num_samples, 1)
-        image_prompt_embeds = image_prompt_embeds.view(bs_embed * num_samples, seq_len, -1)
-        uncond_image_prompt_embeds = uncond_image_prompt_embeds.repeat(1, num_samples, 1)
-        uncond_image_prompt_embeds = uncond_image_prompt_embeds.view(bs_embed * num_samples, seq_len, -1)
+        image_prompt_embeds = image_prompt_embeds.view(
+            bs_embed * num_samples, seq_len, -1
+        )
+        uncond_image_prompt_embeds = uncond_image_prompt_embeds.repeat(
+            1, num_samples, 1
+        )
+        uncond_image_prompt_embeds = uncond_image_prompt_embeds.view(
+            bs_embed * num_samples, seq_len, -1
+        )
         with torch.inference_mode():
             prompt_embeds_, negative_prompt_embeds_ = self.pipe.encode_prompt(
                 prompt,
@@ -576,9 +715,13 @@ class StyleShot(torch.nn.Module):
                 negative_prompt=negative_prompt,
             )
             prompt_embeds = torch.cat([prompt_embeds_, image_prompt_embeds], dim=1)
-            negative_prompt_embeds = torch.cat([negative_prompt_embeds_, uncond_image_prompt_embeds], dim=1)
+            negative_prompt_embeds = torch.cat(
+                [negative_prompt_embeds_, uncond_image_prompt_embeds], dim=1
+            )
 
-        generator = torch.Generator(device).manual_seed(seed) if seed is not None else None
+        generator = (
+            torch.Generator(device).manual_seed(seed) if seed is not None else None
+        )
         if content_image is None:
             images = self.pipe(
                 prompt_embeds=prompt_embeds,
@@ -603,17 +746,17 @@ class StyleShot(torch.nn.Module):
         return images
 
     def generate(
-            self,
-            style_image=None,
-            prompt=None,
-            negative_prompt=None,
-            scale=1.0,
-            num_samples=1,
-            seed=42,
-            guidance_scale=7.5,
-            num_inference_steps=50,
-            content_image=None,
-            **kwargs,
+        self,
+        style_image=None,
+        prompt=None,
+        negative_prompt=None,
+        scale=1.0,
+        num_samples=1,
+        seed=42,
+        guidance_scale=7.5,
+        num_inference_steps=50,
+        content_image=None,
+        **kwargs,
     ):
         self.set_scale(scale)
 
@@ -622,7 +765,9 @@ class StyleShot(torch.nn.Module):
         if prompt is None:
             prompt = "best quality, high quality"
         if negative_prompt is None:
-            negative_prompt = "monochrome, lowres, bad anatomy, worst quality, low quality"
+            negative_prompt = (
+                "monochrome, lowres, bad anatomy, worst quality, low quality"
+            )
 
         if not isinstance(prompt, List):
             prompt = [prompt] * num_prompts
@@ -632,7 +777,19 @@ class StyleShot(torch.nn.Module):
         style_ip_tokens, uncond_style_ip_tokens = self.get_image_embeds(style_image)
         generate_images = []
         for p in prompt:
-            images = self.samples(style_ip_tokens, uncond_style_ip_tokens, num_samples, self.device, p * num_prompts, negative_prompt, seed, guidance_scale, num_inference_steps, content_image, **kwargs, )
+            images = self.samples(
+                style_ip_tokens,
+                uncond_style_ip_tokens,
+                num_samples,
+                self.device,
+                p * num_prompts,
+                negative_prompt,
+                seed,
+                guidance_scale,
+                num_inference_steps,
+                content_image,
+                **kwargs,
+            )
             generate_images.append(images)
         return generate_images
 
@@ -792,15 +949,31 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
                 "Passing `callback_steps` as an input argument to `__call__` is deprecated, consider using `callback_on_step_end`",
             )
 
-        controlnet = self.controlnet._orig_mod if is_compiled_module(self.controlnet) else self.controlnet
+        controlnet = (
+            self.controlnet._orig_mod
+            if is_compiled_module(self.controlnet)
+            else self.controlnet
+        )
 
         # align format for control guidance
-        if not isinstance(control_guidance_start, list) and isinstance(control_guidance_end, list):
-            control_guidance_start = len(control_guidance_end) * [control_guidance_start]
-        elif not isinstance(control_guidance_end, list) and isinstance(control_guidance_start, list):
+        if not isinstance(control_guidance_start, list) and isinstance(
+            control_guidance_end, list
+        ):
+            control_guidance_start = len(control_guidance_end) * [
+                control_guidance_start
+            ]
+        elif not isinstance(control_guidance_end, list) and isinstance(
+            control_guidance_start, list
+        ):
             control_guidance_end = len(control_guidance_start) * [control_guidance_end]
-        elif not isinstance(control_guidance_start, list) and not isinstance(control_guidance_end, list):
-            mult = len(controlnet.nets) if isinstance(controlnet, MultiControlNetModel) else 1
+        elif not isinstance(control_guidance_start, list) and not isinstance(
+            control_guidance_end, list
+        ):
+            mult = (
+                len(controlnet.nets)
+                if isinstance(controlnet, MultiControlNetModel)
+                else 1
+            )
             control_guidance_start, control_guidance_end = (
                 mult * [control_guidance_start],
                 mult * [control_guidance_end],
@@ -836,8 +1009,12 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
 
         device = self._execution_device
 
-        if isinstance(controlnet, MultiControlNetModel) and isinstance(controlnet_conditioning_scale, float):
-            controlnet_conditioning_scale = [controlnet_conditioning_scale] * len(controlnet.nets)
+        if isinstance(controlnet, MultiControlNetModel) and isinstance(
+            controlnet_conditioning_scale, float
+        ):
+            controlnet_conditioning_scale = [controlnet_conditioning_scale] * len(
+                controlnet.nets
+            )
 
         global_pool_conditions = (
             controlnet.config.global_pool_conditions
@@ -848,7 +1025,9 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
 
         # 3. Encode input prompt
         text_encoder_lora_scale = (
-            self.cross_attention_kwargs.get("scale", None) if self.cross_attention_kwargs is not None else None
+            self.cross_attention_kwargs.get("scale", None)
+            if self.cross_attention_kwargs is not None
+            else None
         )
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
@@ -920,7 +1099,9 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
             assert False
 
         # 5. Prepare timesteps
-        timesteps, num_inference_steps = retrieve_timesteps(self.scheduler, num_inference_steps, device, timesteps)
+        timesteps, num_inference_steps = retrieve_timesteps(
+            self.scheduler, num_inference_steps, device, timesteps
+        )
         self._num_timesteps = len(timesteps)
 
         # 6. Prepare latent variables
@@ -939,7 +1120,9 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
         # 6.5 Optionally get Guidance Scale Embedding
         timestep_cond = None
         if self.unet.config.time_cond_proj_dim is not None:
-            guidance_scale_tensor = torch.tensor(self.guidance_scale - 1).repeat(batch_size * num_images_per_prompt)
+            guidance_scale_tensor = torch.tensor(self.guidance_scale - 1).repeat(
+                batch_size * num_images_per_prompt
+            )
             timestep_cond = self.get_guidance_scale_embedding(
                 guidance_scale_tensor, embedding_dim=self.unet.config.time_cond_proj_dim
             ).to(device=device, dtype=latents.dtype)
@@ -961,7 +1144,9 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
                 1.0 - float(i / len(timesteps) < s or (i + 1) / len(timesteps) > e)
                 for s, e in zip(control_guidance_start, control_guidance_end)
             ]
-            controlnet_keep.append(keeps[0] if isinstance(controlnet, ControlNetModel) else keeps)
+            controlnet_keep.append(
+                keeps[0] if isinstance(controlnet, ControlNetModel) else keeps
+            )
 
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
@@ -972,24 +1157,39 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
             for i, t in enumerate(timesteps):
                 # Relevant thread:
                 # https://dev-discuss.pytorch.org/t/cudagraphs-in-pytorch-2-0/1428
-                if (is_unet_compiled and is_controlnet_compiled) and is_torch_higher_equal_2_1:
+                if (
+                    is_unet_compiled and is_controlnet_compiled
+                ) and is_torch_higher_equal_2_1:
                     torch._inductor.cudagraph_mark_step_begin()
                 # expand the latents if we are doing classifier free guidance
-                latent_model_input = torch.cat([latents] * 2) if self.do_classifier_free_guidance else latents
-                latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+                latent_model_input = (
+                    torch.cat([latents] * 2)
+                    if self.do_classifier_free_guidance
+                    else latents
+                )
+                latent_model_input = self.scheduler.scale_model_input(
+                    latent_model_input, t
+                )
 
                 # controlnet(s) inference
                 if guess_mode and self.do_classifier_free_guidance:
                     # Infer ControlNet only for the conditional batch.
                     control_model_input = latents
-                    control_model_input = self.scheduler.scale_model_input(control_model_input, t)
+                    control_model_input = self.scheduler.scale_model_input(
+                        control_model_input, t
+                    )
                     controlnet_prompt_embeds = prompt_embeds.chunk(2)[1]
                 else:
                     control_model_input = latent_model_input
                     controlnet_prompt_embeds = prompt_embeds
 
                 if isinstance(controlnet_keep[i], list):
-                    cond_scale = [c * s for c, s in zip(controlnet_conditioning_scale, controlnet_keep[i])]
+                    cond_scale = [
+                        c * s
+                        for c, s in zip(
+                            controlnet_conditioning_scale, controlnet_keep[i]
+                        )
+                    ]
                 else:
                     controlnet_cond_scale = controlnet_conditioning_scale
                     if isinstance(controlnet_cond_scale, list):
@@ -997,7 +1197,9 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
                     cond_scale = controlnet_cond_scale * controlnet_keep[i]
 
                 if self.do_classifier_free_guidance:
-                    style_embeddings_input = torch.cat([negative_style_embeddings, style_embeddings])
+                    style_embeddings_input = torch.cat(
+                        [negative_style_embeddings, style_embeddings]
+                    )
 
                 down_block_res_samples, mid_block_res_sample = self.controlnet(
                     control_model_input,
@@ -1013,8 +1215,13 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
                     # Infered ControlNet only for the conditional batch.
                     # To apply the output of ControlNet to both the unconditional and conditional batches,
                     # add 0 to the unconditional batch to keep it unchanged.
-                    down_block_res_samples = [torch.cat([torch.zeros_like(d), d]) for d in down_block_res_samples]
-                    mid_block_res_sample = torch.cat([torch.zeros_like(mid_block_res_sample), mid_block_res_sample])
+                    down_block_res_samples = [
+                        torch.cat([torch.zeros_like(d), d])
+                        for d in down_block_res_samples
+                    ]
+                    mid_block_res_sample = torch.cat(
+                        [torch.zeros_like(mid_block_res_sample), mid_block_res_sample]
+                    )
 
                 # predict the noise residual
                 noise_pred = self.unet(
@@ -1032,10 +1239,14 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
                 # perform guidance
                 if self.do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                    noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
+                    noise_pred = noise_pred_uncond + self.guidance_scale * (
+                        noise_pred_text - noise_pred_uncond
+                    )
 
                 # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
+                latents = self.scheduler.step(
+                    noise_pred, t, latents, **extra_step_kwargs, return_dict=False
+                )[0]
 
                 if callback_on_step_end is not None:
                     callback_kwargs = {}
@@ -1045,10 +1256,14 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
 
                     latents = callback_outputs.pop("latents", latents)
                     prompt_embeds = callback_outputs.pop("prompt_embeds", prompt_embeds)
-                    negative_prompt_embeds = callback_outputs.pop("negative_prompt_embeds", negative_prompt_embeds)
+                    negative_prompt_embeds = callback_outputs.pop(
+                        "negative_prompt_embeds", negative_prompt_embeds
+                    )
 
                 # call the callback, if provided
-                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
+                if i == len(timesteps) - 1 or (
+                    (i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0
+                ):
                     progress_bar.update()
                     if callback is not None and i % callback_steps == 0:
                         step_idx = i // getattr(self.scheduler, "order", 1)
@@ -1062,10 +1277,14 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
             torch.cuda.empty_cache()
 
         if not output_type == "latent":
-            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False, generator=generator)[
-                0
-            ]
-            image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
+            image = self.vae.decode(
+                latents / self.vae.config.scaling_factor,
+                return_dict=False,
+                generator=generator,
+            )[0]
+            image, has_nsfw_concept = self.run_safety_checker(
+                image, device, prompt_embeds.dtype
+            )
         else:
             image = latents
             has_nsfw_concept = None
@@ -1075,7 +1294,9 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
         else:
             do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
 
-        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
+        image = self.image_processor.postprocess(
+            image, output_type=output_type, do_denormalize=do_denormalize
+        )
 
         # Offload all models
         self.maybe_free_model_hooks()
@@ -1083,4 +1304,6 @@ class StyleContentStableDiffusionControlNetPipeline(StableDiffusionControlNetPip
         if not return_dict:
             return (image, has_nsfw_concept)
 
-        return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=has_nsfw_concept)
+        return StableDiffusionPipelineOutput(
+            images=image, nsfw_content_detected=has_nsfw_concept
+        )
