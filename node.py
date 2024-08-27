@@ -1,8 +1,14 @@
 import os
 import cv2
+import sys
 import torch
 import argparse
 import numpy as np
+
+project_root = os.path.abspath(os.path.dirname(__file__))
+
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
 from PIL import Image
 from diffusers import (
@@ -18,7 +24,7 @@ from annotator.lineart import LineartDetector
 from huggingface_hub import snapshot_download
 from ip_adapter import StyleShot, StyleContentStableDiffusionControlNetPipeline
 
-model_dir = os.path.join(os.path.dirname(__file__), "prtrained_models")
+model_dir = os.path.join(project_root, "prtrained_models")
 device = "cuda"
 
 
