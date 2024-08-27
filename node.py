@@ -36,10 +36,7 @@ class PipelineLoader:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "mode": (
-                    "COMBO",
-                    ["text_driven", "image_driven", "controlnet", "t2i-adapter"],
-                ),
+                "mode": (["text_driven", "image_driven", "controlnet", "t2i-adapter"]),
                 "base_model_path": (
                     "STRING",
                     {"default": "runwayml/stable-diffusion-v1-5"},
@@ -189,15 +186,12 @@ class StyleShot:
         return {
             "required": {
                 "pipeline": ("PIPELINE",),
-                "mode": (
-                    "COMBO",
-                    ["text_driven", "image_driven", "controlnet", "t2i-adapter"],
-                ),
+                "mode": (["text_driven", "image_driven", "controlnet", "t2i-adapter"],),
                 "style_image": ("IMAGE",),
-                "condition_image": ("IMAGE",),
-                "prompt": ("STRING",),
             },
             "optional": {
+                "condition_image": ("IMAGE",),
+                "prompt": ("STRING",),
                 "preprocessor": (["Contour", "Lineart"],),
             },
         }
@@ -235,4 +229,7 @@ class StyleShot:
             generation = pipeline.generate(
                 style_image=style_image, prompt=[[prompt]], image=[condition_image]
             )
-        return generation[0][0]
+        else:
+            raise ValueError("Invalid mode")
+        results = torch.from_numpy(np.array(generation[0][0]) / 255.0).unsqueeze(0)
+        return results
