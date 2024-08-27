@@ -1,11 +1,11 @@
-from .node import PipelineLoader, StyleShot
+from .node import PipelineLoader, StyleShotApply
 
 NODE_CLASS_MAPPINGS = {
     "PipelineLoader": PipelineLoader,
-    "StyleShot": StyleShot,
+    "StyleShotApply": StyleShotApply,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PipelineLoader": "Pipeline Loader",
-    "StyleShot": "StyleShot",
+    "StyleShotApply": "StyleShotApply",
 }

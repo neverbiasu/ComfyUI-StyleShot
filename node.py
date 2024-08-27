@@ -177,7 +177,7 @@ class PipelineLoader:
         return styleshot
 
 
-class StyleShot:
+class StyleShotApply:
     def __init__(self):
         pass
 
