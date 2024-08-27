@@ -200,7 +200,9 @@ class StyleShotApply:
             generation = pipeline.generate(style_image=style_image, prompt=[[prompt]])
         elif mode == "image_driven":
             content_image = np.array(condition_image)
+            print("content_image.shape1", content_image.shape)
             content_image = cv2.cvtColor(content_image, cv2.COLOR_BGR2RGB)
+            print("content_image.shape2", content_image.shape)
             content_image = detector(content_image)
             content_image = Image.fromarray(content_image)
             generation = pipeline.generate(
