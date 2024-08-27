@@ -166,7 +166,6 @@ class StyleShotApply:
 
     def generate(
         self,
-        pipeline,
         mode,
         style_image,
         condition_image,
