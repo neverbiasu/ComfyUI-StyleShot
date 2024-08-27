@@ -27,7 +27,7 @@ model_dir = os.path.join(project_root, "prtrained_models")
 device = "cuda"
 
 
-class PipelineLoader:
+class StyleShotApply:
     def __init__(self):
         pass
 
@@ -39,32 +39,20 @@ class PipelineLoader:
                     ["text_driven", "image_driven", "controlnet", "t2i-adapter"],
                     {"default": "text_driven"},
                 ),
-                "base_model_path": (
-                    "STRING",
-                    {"default": "runwayml/stable-diffusion-v1-5"},
-                ),
-                "transformer_block_path": (
-                    "STRING",
-                    {"default": "laion/CLIP-ViT-H-14-laion2B-s32B-b79K"},
-                ),
-                "styleshot_model_path": ("STRING", {"default": "Gaojunyao/StyleShot"}),
-                "controlnet_model_path": (
-                    "STRING",
-                    {"default": "lllyasviel/control_v11f1p_sd15_depth"},
-                ),
-                "adapter_model_path": (
-                    "STRING",
-                    {"default": "TencentARC/t2iadapter_depth_sd15v2"},
-                ),
-                "preprocessor": (["Lineart", "Contour"], {"default": "Contour"}),
-            }
+                "style_image": ("IMAGE", {"default": None}),
+            },
+            "optional": {
+                "condition_image": ("IMAGE", {"default": None}),
+                "prompt": ("STRING", {"default": ""}),
+                "preprocessor": (["Contour", "Lineart"], {"default": "Contour"}),
+            },
         }
 
-    RETURN_TYPES = ("PIPELINE",)
-    FUNCTION = "load_pipeline"
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "generate"
     OUTPUT_NODE = True
 
-    CATEGORY = "PIPELINE"
+    CATEGORY = "StyleShot"
 
     def load_pipeline(
         self,
@@ -118,7 +106,7 @@ class PipelineLoader:
             pipe = StableDiffusionPipeline.from_pretrained(
                 base_model_path, variant="fp16"
             )
-            styleshot = StyleShot(
+            self.styleshot = StyleShot(
                 device, pipe, ip_ckpt, style_aware_encoder_path, transformer_block_path
             )
         if mode == "image_driven":
@@ -130,7 +118,7 @@ class PipelineLoader:
             pipe = StyleContentStableDiffusionControlNetPipeline.from_pretrained(
                 base_model_path, variant="fp16", controlnet=content_fusion_encoder
             )
-            styleshot = StyleShot(
+            self.styleshot = StyleShot(
                 device, pipe, ip_ckpt, style_aware_encoder_path, transformer_block_path
             )
 
@@ -151,7 +139,7 @@ class PipelineLoader:
                 base_model_path, adapter=adapter, variant="fp16"
             )
 
-            styleshot = StyleShot(
+            self.styleshot = StyleShot(
                 device, pipe, ip_ckpt, style_aware_encoder_path, transformer_block_path
             )
 
@@ -172,40 +160,9 @@ class PipelineLoader:
                 base_model_path, controlnet=controlnet, variant="fp16"
             )
 
-            styleshot = StyleShot(
+            self.styleshot = StyleShot(
                 device, pipe, ip_ckpt, style_aware_encoder_path, transformer_block_path
             )
-
-        return styleshot
-
-
-class StyleShotApply:
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "pipeline": ("PIPELINE",),
-                "mode": (
-                    ["text_driven", "image_driven", "controlnet", "t2i-adapter"],
-                    {"default": "text_driven"},
-                ),
-                "style_image": ("IMAGE", {"default": None}),
-            },
-            "optional": {
-                "condition_image": ("IMAGE", {"default": None}),
-                "prompt": ("STRING", {"default": ""}),
-                "preprocessor": (["Contour", "Lineart"], {"default": "Contour"}),
-            },
-        }
-
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "generate"
-    OUTPUT_NODE = True
-
-    CATEGORY = "StyleShot"
 
     def generate(
         self,
@@ -216,12 +173,30 @@ class StyleShotApply:
         prompt,
         preprocessor,
     ):
+        print("Loading pipeline...")
+        base_model_path = "runwayml/stable-diffusion-v1-5"
+        transformer_block_path = "laion/CLIP-ViT-H-14-laion2B-s32B-b79K"
+        styleshot_model_path = "Gaojunyao/StyleShot"
+        controlnet_model_path = "lllyasviel/control_v11f1p_sd15_depth"
+        adapter_model_path = "TencentARC/t2iadapter_depth_sd15v2"
+        self.load_pipeline(
+            mode,
+            base_model_path,
+            transformer_block_path,
+            styleshot_model_path,
+            controlnet_model_path,
+            adapter_model_path,
+            preprocessor,
+        )
+        pipeline = self.styleshot
+        print("Pipeline loaded")
         if preprocessor == "Lineart":
             detector = LineartDetector()
         elif preprocessor == "Contour":
             detector = SOFT_HEDdetector()
         else:
             raise ValueError("Invalid preprocessor")
+        print("Generating...")
         if mode == "text_driven":
             generation = pipeline.generate(style_image=style_image, prompt=[[prompt]])
         elif mode == "image_driven":
@@ -243,4 +218,5 @@ class StyleShotApply:
         else:
             raise ValueError("Invalid mode")
         result = torch.from_numpy(np.array(generation[0][0]) / 255.0).unsqueeze(0)
+        print("Generation done")
         return result
