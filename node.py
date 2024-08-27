@@ -54,7 +54,7 @@ class PipelineLoader:
                     "STRING",
                     {"default": "TencentARC/t2iadapter_depth_sd15v2"},
                 ),
-                "preprocessor": ("COMBO", ["Lineart", "Contour"]),
+                "preprocessor": (["Lineart", "Contour"]),
             }
         }
 
@@ -231,5 +231,5 @@ class StyleShot:
             )
         else:
             raise ValueError("Invalid mode")
-        results = torch.from_numpy(np.array(generation[0][0]) / 255.0).unsqueeze(0)
-        return results
+        result = torch.from_numpy(np.array(generation[0][0]) / 255.0).unsqueeze(0)
+        return result
