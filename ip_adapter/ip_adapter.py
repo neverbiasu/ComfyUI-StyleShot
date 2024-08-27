@@ -569,8 +569,13 @@ class StyleShot(torch.nn.Module):
         self.load_ip_adapter()
         self.pipe = self.pipe.to(self.device, dtype=torch.float32)
 
+        self.results = []
+
     def __len__(self):
-        return self.num_tokens
+        return len(self.results)
+
+    def __getitem__(self, index):
+        return self.results[index]
 
     def init_proj(self):
         style_image_proj_modules = torch.nn.ModuleList(
