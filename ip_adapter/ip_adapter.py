@@ -700,6 +700,7 @@ class StyleShot(torch.nn.Module):
         content_image,
         **kwargs,
     ):
+        print("Getting image embeds")
         bs_embed, seq_len, _ = image_prompt_embeds.shape
         image_prompt_embeds = image_prompt_embeds.repeat(1, num_samples, 1)
         image_prompt_embeds = image_prompt_embeds.view(
@@ -723,10 +724,11 @@ class StyleShot(torch.nn.Module):
             negative_prompt_embeds = torch.cat(
                 [negative_prompt_embeds_, uncond_image_prompt_embeds], dim=1
             )
-
+        print("Got prompt embeds")
         generator = (
             torch.Generator(device).manual_seed(seed) if seed is not None else None
         )
+        print("Start generating")
         if content_image is None:
             images = self.pipe(
                 prompt_embeds=prompt_embeds,
@@ -763,6 +765,7 @@ class StyleShot(torch.nn.Module):
         content_image=None,
         **kwargs,
     ):
+        print("Setting scale")
         self.set_scale(scale)
 
         num_prompts = 1
@@ -780,8 +783,10 @@ class StyleShot(torch.nn.Module):
             negative_prompt = [negative_prompt] * num_prompts
 
         style_ip_tokens, uncond_style_ip_tokens = self.get_image_embeds(style_image)
+        print("Getting image embeds")
         generate_images = []
         for p in prompt:
+            print("Generating images")
             images = self.samples(
                 style_ip_tokens,
                 uncond_style_ip_tokens,
@@ -796,6 +801,7 @@ class StyleShot(torch.nn.Module):
                 **kwargs,
             )
             generate_images.append(images)
+            print("Images generated")
         return generate_images
 
 
