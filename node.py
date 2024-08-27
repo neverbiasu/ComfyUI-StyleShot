@@ -36,7 +36,7 @@ class PipelineLoader:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "mode": (["text_driven", "image_driven", "controlnet", "t2i-adapter"]),
+                "mode": (["text_driven", "image_driven", "controlnet", "t2i-adapter"],),
                 "base_model_path": (
                     "STRING",
                     {"default": "runwayml/stable-diffusion-v1-5"},
@@ -54,7 +54,7 @@ class PipelineLoader:
                     "STRING",
                     {"default": "TencentARC/t2iadapter_depth_sd15v2"},
                 ),
-                "preprocessor": (["Lineart", "Contour"]),
+                "preprocessor": (["Lineart", "Contour"],),
             }
         }
 
