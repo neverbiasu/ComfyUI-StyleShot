@@ -515,12 +515,15 @@ class IPAdapterPlusXL(IPAdapter):
 
 
 def StyleProcessor(style_image, device):
+    print("Processing style image")
+    print("device", device)
     transform = transforms.Compose(
         [
             transforms.ToTensor(),
             transforms.Normalize([0.5], [0.5]),
         ]
     )
+    print("Transformed style image")
     # centercrop for style condition
     crop = transforms.Compose(
         [
@@ -529,15 +532,18 @@ def StyleProcessor(style_image, device):
         ]
     )
     style_image = crop(style_image)
+    print("Cropped style image")
     high_style_patch, middle_style_patch, low_style_patch = pre_processing(
         style_image.convert("RGB"), transform
     )
+    print("Preprocessed style image")
     # shuffling
     high_style_patch, middle_style_patch, low_style_patch = (
         high_style_patch[torch.randperm(high_style_patch.shape[0])],
         middle_style_patch[torch.randperm(middle_style_patch.shape[0])],
         low_style_patch[torch.randperm(low_style_patch.shape[0])],
     )
+    print("Shuffled style image")
     return (
         high_style_patch.to(device, dtype=torch.float32),
         middle_style_patch.to(device, dtype=torch.float32),
@@ -664,12 +670,16 @@ class StyleShot(torch.nn.Module):
 
     @torch.inference_mode()
     def get_image_embeds(self, style_image=None):
+        print("Getting image embeds")
         style_image = StyleProcessor(style_image, self.device)
+        print("Got style image")
         style_embeds = self.style_aware_encoder(style_image).to(
             self.device, dtype=torch.float32
         )
+        print("Got style embeds")
         style_ip_tokens = []
         uncond_style_ip_tokens = []
+        print("Starting loop")
         for idx, style_embed in enumerate(
             [style_embeds[:, 0, :], style_embeds[:, 1, :], style_embeds[:, 2, :]]
         ):
@@ -677,8 +687,11 @@ class StyleShot(torch.nn.Module):
             uncond_style_ip_tokens.append(
                 self.style_image_proj_modules[idx](torch.zeros_like(style_embed))
             )
+        print("Finished loop")
         style_ip_tokens = torch.cat(style_ip_tokens, dim=1)
+        print("Got style ip tokens")
         uncond_style_ip_tokens = torch.cat(uncond_style_ip_tokens, dim=1)
+        print("Got image embeds")
         return style_ip_tokens, uncond_style_ip_tokens
 
     def set_scale(self, scale):
@@ -700,7 +713,7 @@ class StyleShot(torch.nn.Module):
         content_image,
         **kwargs,
     ):
-        print("Getting image embeds")
+        print("Get prompt embeds")
         bs_embed, seq_len, _ = image_prompt_embeds.shape
         image_prompt_embeds = image_prompt_embeds.repeat(1, num_samples, 1)
         image_prompt_embeds = image_prompt_embeds.view(
@@ -781,7 +794,7 @@ class StyleShot(torch.nn.Module):
             prompt = [prompt] * num_prompts
         if not isinstance(negative_prompt, List):
             negative_prompt = [negative_prompt] * num_prompts
-
+        print("Getting image embeds")
         style_ip_tokens, uncond_style_ip_tokens = self.get_image_embeds(style_image)
         print("Getting image embeds")
         generate_images = []
