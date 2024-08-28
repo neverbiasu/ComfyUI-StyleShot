@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-styleshot"
-description = "NODES:Pipeline Loader, StyleShotApply"
+description = "NODES:StyleShotApply"
 version = "1.0.0"
 license = {file = "LICENSE"}
 dependencies = ["torch==2.3.1", "torchvision==0.18.1", "jmespath==0.10.0", "python-dateutil==2.8.2", "diffusers==0.29.1", "transformers", "accelerate==0.21.0", "opencv-python==4.8.1.78", "einops==0.7.0", "botocore==1.34.139", "basicsr"]
@@ -10,6 +10,6 @@ Repository = "https://github.com/neverbiasu/ComfyUI-StyleShot"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "faych"
 DisplayName = "ComfyUI-StyleShot"
 Icon = ""
