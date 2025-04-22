@@ -1,9 +1,9 @@
 [project]
-name = "comfyui-styleshot"
+name = "ComfyUI-StyleShot"
 description = "NODES:StyleShotApply"
-version = "1.0.0"
+version = "1.0.1"
 license = {file = "LICENSE"}
-dependencies = ["torch==2.3.1", "torchvision==0.18.1", "jmespath==0.10.0", "python-dateutil==2.8.2", "diffusers==0.29.1", "transformers", "accelerate==0.21.0", "opencv-python==4.8.1.78", "einops==0.7.0", "botocore==1.34.139", "basicsr"]
+dependencies = ["jmespath==0.10.0", "python-dateutil==2.8.2", "diffusers==0.29.1", "transformers", "accelerate==0.21.0", "opencv-python==4.8.1.78", "einops==0.7.0", "botocore==1.34.139", "basicsr"]
 
 [project.urls]
 Repository = "https://github.com/neverbiasu/ComfyUI-StyleShot"
