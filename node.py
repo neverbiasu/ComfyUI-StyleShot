@@ -23,8 +23,14 @@ from annotator.lineart import LineartDetector
 from huggingface_hub import snapshot_download
 from ip_adapter import StyleShot, StyleContentStableDiffusionControlNetPipeline
 
-model_dir = os.path.join(project_root, "prtrained_models")
+model_dir = os.path.join(project_root, "pretrained_models")
 device = "cuda"
+
+
+def comfyui_tensor_to_pil(img_tensor):
+    img = img_tensor[0].cpu().numpy()  # [H, W, C]
+    img = (img * 255).clip(0, 255).astype('uint8')
+    return Image.fromarray(img)
 
 
 class StyleShotApply:
@@ -64,11 +70,22 @@ class StyleShotApply:
         adapter_model_path,
         preprocessor,
     ):
+        args_tuple = (
+            mode,
+            base_model_path,
+            transformer_block_path,
+            styleshot_model_path,
+            controlnet_model_path,
+            adapter_model_path,
+            preprocessor,
+        )
+        if self._pipeline_cache is not None and self._pipeline_args == args_tuple:
+            self.styleshot = self._pipeline_cache
+            return
+
         if preprocessor == "Lineart":
-            # detector = LineartDetector()
             styleshot_model_path = "Gaojunyao/StyleShot_lineart"
         elif preprocessor == "Contour":
-            # detector = SOFT_HEDdetector()
             styleshot_model_path = "Gaojunyao/StyleShot"
         else:
             raise ValueError("Invalid preprocessor")
@@ -104,19 +121,22 @@ class StyleShotApply:
 
         if mode == "text_driven":
             pipe = StableDiffusionPipeline.from_pretrained(
-                base_model_path, variant="fp16"
+                base_model_path, torch_dtype=torch.float16
             )
             self.styleshot = StyleShot(
                 device, pipe, ip_ckpt, style_aware_encoder_path, transformer_block_path
             )
+
         if mode == "image_driven":
             unet = UNet2DConditionModel.from_pretrained(
-                base_model_path, subfolder="unet", variant="fp16"
+                base_model_path, subfolder="unet", torch_dtype=torch.float16
             )
             content_fusion_encoder = ControlNetModel.from_unet(unet)
 
             pipe = StyleContentStableDiffusionControlNetPipeline.from_pretrained(
-                base_model_path, variant="fp16", controlnet=content_fusion_encoder
+                base_model_path,
+                torch_dtype=torch.float16,
+                controlnet=content_fusion_encoder,
             )
             self.styleshot = StyleShot(
                 device, pipe, ip_ckpt, style_aware_encoder_path, transformer_block_path
@@ -136,7 +156,7 @@ class StyleShotApply:
                 adapter_model_path, torch_dtype=torch.float16
             )
             pipe = StableDiffusionAdapterPipeline.from_pretrained(
-                base_model_path, adapter=adapter, variant="fp16"
+                base_model_path, adapter=adapter, torch_dtype=torch.float16
             )
 
             self.styleshot = StyleShot(
@@ -157,12 +177,14 @@ class StyleShotApply:
                 controlnet_model_path, torch_dtype=torch.float16
             )
             pipe = StableDiffusionControlNetPipeline.from_pretrained(
-                base_model_path, controlnet=controlnet, variant="fp16"
+                base_model_path, controlnet=controlnet, torch_dtype=torch.float16
             )
 
             self.styleshot = StyleShot(
                 device, pipe, ip_ckpt, style_aware_encoder_path, transformer_block_path
             )
+        self._pipeline_cache = self.styleshot
+        self._pipeline_args = args_tuple
 
     def generate(
         self,
@@ -188,50 +210,41 @@ class StyleShotApply:
             preprocessor,
         )
         pipeline = self.styleshot
-        print("Pipeline loaded")
         if preprocessor == "Lineart":
             detector = LineartDetector()
         elif preprocessor == "Contour":
             detector = SOFT_HEDdetector()
         else:
             raise ValueError("Invalid preprocessor")
-        print("Generating...")
         if mode == "text_driven":
             generation = pipeline.generate(style_image=style_image, prompt=[[prompt]])
         elif mode == "image_driven":
-            print("content_image", condition_image)
-            content_image = np.array(condition_image)
-            print("content_image.shape1", content_image.shape)
-            content_image = content_image[0]
-            print("content_image.shape1.5", content_image.shape)
+            content_image = comfyui_tensor_to_pil(condition_image)
+            content_image = np.array(content_image)
             content_image = cv2.cvtColor(content_image, cv2.COLOR_BGR2RGB)
-            print("content_image.shape2", content_image.shape)
             content_image = detector(content_image)
             content_image = Image.fromarray(content_image)
-            style_image = np.array(style_image)
-            style_image = style_image[0]
-            print("style_image.shape", style_image.shape)
-            style_image = (style_image * 255).astype(np.uint8)
-            print("style_image.shape2", style_image.shape)
-            style_image = Image.fromarray(style_image)
+
+            style_image = comfyui_tensor_to_pil(style_image)
+
             generation = pipeline.generate(
                 style_image=style_image, prompt=[[prompt]], content_image=content_image
             )
         elif mode == "controlnet":
+            style_image = comfyui_tensor_to_pil(style_image)
+            condition_image = comfyui_tensor_to_pil(condition_image)
             generation = pipeline.generate(
                 style_image=style_image, prompt=[[prompt]], image=condition_image
             )
         elif mode == "t2i-adapter":
+            style_image = comfyui_tensor_to_pil(style_image)
+            condition_image = comfyui_tensor_to_pil(condition_image)
             generation = pipeline.generate(
                 style_image=style_image, prompt=[[prompt]], image=[condition_image]
             )
         else:
             raise ValueError("Invalid mode")
-        print("generation[0][0]", generation[0][0])
         generation[0][0].save("test.png")
         image_array = np.array(generation[0][0], dtype=np.float32)
-        print("image_array.shape", image_array.shape)
-        result = torch.from_numpy(image_array).unsqueeze(0).unsqueeze(0) / 255.0
-        print("result.shape", result.shape)
-        print("Generation done")
+        result = torch.from_numpy(image_array).unsqueeze(0) / 255.0  # [1, H, W, C]
         return result
