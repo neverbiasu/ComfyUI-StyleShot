@@ -1,5 +1,5 @@
 [project]
-name = "ComfyUI-StyleShot"
+name = "comfyui-styleshot"
 description = "NODES:StyleShotApply"
 version = "1.0.1"
 license = {file = "LICENSE"}
