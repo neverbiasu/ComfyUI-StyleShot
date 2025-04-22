@@ -35,7 +35,9 @@ def comfyui_tensor_to_pil(img_tensor):
 
 class StyleShotApply:
     def __init__(self):
-        pass
+        self._pipeline_cache = None
+        self._pipeline_args = None
+        self.styleshot = None
 
     @classmethod
     def INPUT_TYPES(cls):
