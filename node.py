@@ -123,7 +123,7 @@ class StyleShotApply:
 
         if mode == "text_driven":
             pipe = StableDiffusionPipeline.from_pretrained(
-                base_model_path, torch_dtype=torch.float16
+                base_model_path, variant="fp16"
             )
             self.styleshot = StyleShot(
                 device, pipe, ip_ckpt, style_aware_encoder_path, transformer_block_path
@@ -131,13 +131,13 @@ class StyleShotApply:
 
         if mode == "image_driven":
             unet = UNet2DConditionModel.from_pretrained(
-                base_model_path, subfolder="unet", torch_dtype=torch.float16
+                base_model_path, subfolder="unet", variant="fp16"
             )
             content_fusion_encoder = ControlNetModel.from_unet(unet)
 
             pipe = StyleContentStableDiffusionControlNetPipeline.from_pretrained(
                 base_model_path,
-                torch_dtype=torch.float16,
+                variant="fp16",
                 controlnet=content_fusion_encoder,
             )
             self.styleshot = StyleShot(
@@ -158,7 +158,7 @@ class StyleShotApply:
                 adapter_model_path, torch_dtype=torch.float16
             )
             pipe = StableDiffusionAdapterPipeline.from_pretrained(
-                base_model_path, adapter=adapter, torch_dtype=torch.float16
+                base_model_path, adapter=adapter, variant="fp16"
             )
 
             self.styleshot = StyleShot(
@@ -179,7 +179,7 @@ class StyleShotApply:
                 controlnet_model_path, torch_dtype=torch.float16
             )
             pipe = StableDiffusionControlNetPipeline.from_pretrained(
-                base_model_path, controlnet=controlnet, torch_dtype=torch.float16
+                base_model_path, controlnet=controlnet, variant="fp16"
             )
 
             self.styleshot = StyleShot(
