@@ -28,8 +28,6 @@ device = "cuda"
 
 
 def pil_to_tensor(img):
-    if isinstance(img, np.ndarray):
-        img = Image.fromarray(img)
     img = img.convert("RGB")
     img = np.array(img).astype(np.float32) / 255.0
     return torch.from_numpy(img).unsqueeze(0)  # [1, H, W, 3]
@@ -265,5 +263,4 @@ class StyleShotApply:
             else Image.fromarray(generation[0][0])
         )
         result_tensor = pil_to_tensor(gen_pil)
-
-        return result_tensor
+        return (result_tensor,)
