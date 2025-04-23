@@ -27,6 +27,14 @@ model_dir = os.path.join(project_root, "pretrained_models")
 device = "cuda"
 
 
+def pil_to_tensor(img):
+    if isinstance(img, np.ndarray):
+        img = Image.fromarray(img)
+    img = img.convert("RGB")
+    img = np.array(img).astype(np.float32) / 255.0
+    return torch.from_numpy(img).unsqueeze(0)  # [1, H, W, 3]
+
+
 def comfyui_tensor_to_pil(img_tensor):
     img = img_tensor[0].cpu().numpy()  # [H, W, C]
     img = (img * 255).clip(0, 255).astype('uint8')
@@ -218,35 +226,44 @@ class StyleShotApply:
             detector = SOFT_HEDdetector()
         else:
             raise ValueError("Invalid preprocessor")
+
+        style_pil = (
+            comfyui_tensor_to_pil(style_image)
+            if isinstance(style_image, torch.Tensor)
+            else style_image
+        )
+        cond_pil = (
+            comfyui_tensor_to_pil(condition_image)
+            if isinstance(condition_image, torch.Tensor)
+            else condition_image
+        )
+
         if mode == "text_driven":
-            generation = pipeline.generate(style_image=style_image, prompt=[[prompt]])
+            generation = pipeline.generate(style_image=style_pil, prompt=[[prompt]])
         elif mode == "image_driven":
-            content_image = comfyui_tensor_to_pil(condition_image)
-            content_image = np.array(content_image)
+            content_image = np.array(cond_pil)
             content_image = cv2.cvtColor(content_image, cv2.COLOR_BGR2RGB)
             content_image = detector(content_image)
             content_image = Image.fromarray(content_image)
-
-            style_image = comfyui_tensor_to_pil(style_image)
-
             generation = pipeline.generate(
-                style_image=style_image, prompt=[[prompt]], content_image=content_image
+                style_image=style_pil, prompt=[[prompt]], content_image=content_image
             )
         elif mode == "controlnet":
-            style_image = comfyui_tensor_to_pil(style_image)
-            condition_image = comfyui_tensor_to_pil(condition_image)
             generation = pipeline.generate(
-                style_image=style_image, prompt=[[prompt]], image=condition_image
+                style_image=style_pil, prompt=[[prompt]], image=cond_pil
             )
         elif mode == "t2i-adapter":
-            style_image = comfyui_tensor_to_pil(style_image)
-            condition_image = comfyui_tensor_to_pil(condition_image)
             generation = pipeline.generate(
-                style_image=style_image, prompt=[[prompt]], image=[condition_image]
+                style_image=style_pil, prompt=[[prompt]], image=[cond_pil]
             )
         else:
             raise ValueError("Invalid mode")
-        generation[0][0].save("test.png")
-        image_array = np.array(generation[0][0], dtype=np.float32)
-        result = torch.from_numpy(image_array).unsqueeze(0) / 255.0  # [1, H, W, C]
-        return result
+
+        gen_pil = (
+            generation[0][0]
+            if isinstance(generation[0][0], Image.Image)
+            else Image.fromarray(generation[0][0])
+        )
+        result_tensor = pil_to_tensor(gen_pil)
+
+        return result_tensor
